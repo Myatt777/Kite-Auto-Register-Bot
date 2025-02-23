@@ -53,7 +53,7 @@ async function createAccount(proxy) {
   try {
     const wallet = Wallet.createRandom();
     fs.appendFileSync('privatekey.txt', `${wallet.privateKey}\n`, 'utf8');
-    fs.appendFileSync('address.txt', `${wallet.address}\n`, 'utf8');
+    fs.appendFileSync('wallets.txt', `${wallet.address}\n`, 'utf8');
     console.log(chalk.blue(" ✅  Generated Wallet Address:", wallet.address));
 
     const nonce = `timestamp_${Date.now()}`;

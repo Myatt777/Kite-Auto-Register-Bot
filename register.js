@@ -7,8 +7,13 @@ import chalk from 'chalk';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
-// Read proxies from proxy.txt
-const proxies = fs.existsSync('proxy.txt') ? fs.readFileSync('proxy.txt', 'utf8').split('\n').map(p => p.trim()).filter(p => p) : [];
+// Read and format proxies from proxy.txt
+const proxies = fs.existsSync('proxy.txt')
+  ? fs.readFileSync('proxy.txt', 'utf8')
+      .split('\n')
+      .map(p => p.trim())
+      .filter(p => p && !p.startsWith("#")) // Ignore empty lines and comments
+  : [];
 
 console.log(banner);
 
@@ -20,7 +25,7 @@ const rl = readline.createInterface({
 rl.question(chalk.green(" 👀 👀 How many accounts do you want to create? "), async (num) => {
   num = parseInt(num);
   if (isNaN(num) || num <= 0) {
-    console.log(chalk.red(" ❌  Invalid number. Exiting..."));
+    console.log(chalk.red(" ❌ Invalid number. Exiting..."));
     rl.close();
     return;
   }
@@ -31,7 +36,7 @@ rl.question(chalk.green(" 👀 👀 How many accounts do you want to create? "),
     let proxy = null;
     if (proxies.length > 0) {
       const randomIndex = Math.floor(Math.random() * proxies.length);
-      proxy = proxies[randomIndex];
+      proxy = formatProxy(proxies[randomIndex]); // Format proxy
       console.log(chalk.green(` 💫 Using Proxy: ${proxy}`));
     } else {
       console.log(chalk.red(" 👽 No proxy found. Using direct connection."));
@@ -42,7 +47,7 @@ rl.question(chalk.green(" 👀 👀 How many accounts do you want to create? "),
       console.log(chalk.yellow(` 🤖 Attempt ${retry}/15...`));
       success = await createAccount(proxy);
       if (!success) {
-        console.log(chalk.red(" 🔄Failed. Retrying..."));
+        console.log(chalk.red(" 🔄 Failed. Retrying..."));
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
@@ -62,7 +67,7 @@ rl.question(chalk.green(" 👀 👀 How many accounts do you want to create? "),
 async function createAccount(proxy) {
   try {
     const wallet = Wallet.createRandom();
-    console.log(chalk.blue("  Generated Wallet Address:", wallet.address));
+    console.log(chalk.blue("  ✅ Generated Wallet Address:", wallet.address));
 
     const nonce = `timestamp_${Date.now()}`;
 
@@ -75,9 +80,13 @@ async function createAccount(proxy) {
     };
 
     if (proxy) {
-      const isSocks = proxy.startsWith("socks");
-      const agent = isSocks ? new SocksProxyAgent(proxy) : new HttpsProxyAgent(proxy);
-      axiosConfig.httpsAgent = agent;
+      try {
+        const agent = proxy.startsWith("socks5://") ? new SocksProxyAgent(proxy) : new HttpsProxyAgent(proxy);
+        axiosConfig.httpsAgent = agent;
+      } catch (error) {
+        console.log(chalk.red(` ❌ Proxy setup failed: ${error.message}`));
+        return false;
+      }
     }
 
     const authTicketResponse = await axios.post(
@@ -126,4 +135,16 @@ async function createAccount(proxy) {
     console.error(chalk.red("Error:", error.response ? JSON.stringify(error.response.data, null, 2) : error.message));
     return false;
   }
+}
+
+// Function to format proxy properly
+function formatProxy(proxy) {
+  if (!proxy.includes("://")) {
+    if (proxy.includes("@")) {
+      return `http://${proxy}`; // Default to HTTP if no protocol specified
+    } else {
+      return `socks5://${proxy}`;
+    }
+  }
+  return proxy;
 }
